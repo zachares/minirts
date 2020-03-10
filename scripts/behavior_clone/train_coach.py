@@ -32,6 +32,9 @@ def train(model, device, optimizer, grad_clip, data_loader, epoch):
         batch = common_utils.to_device(batch, device)
         optimizer.zero_grad()
         loss, all_losses = model.compute_loss(batch)
+        if (batch_idx + 1) % 50 == 0:
+            print("Loss: ", loss.item(), " in", batch_idx + 1, " batch of", len(data_loader))
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
@@ -57,6 +60,9 @@ def evaluate(model, device, data_loader, epoch, name, norm_loss):
             loss, all_losses = model.compute_eval_loss(batch)
         else:
             loss, all_losses = model.compute_loss(batch)
+
+        if (batch_idx + 1) % 50 == 0:
+            print("Loss: ", loss.item(), " in", batch_idx + 1, " batch of", len(data_loader))
 
         for key, val in all_losses.items():
             losses[key].append(val.item())
@@ -116,6 +122,9 @@ def main():
 
     options = args['main']
 
+    # using development set
+    # options.dev = True
+
     if not os.path.exists(options.model_folder):
         os.makedirs(options.model_folder)
     logger_path = os.path.join(options.model_folder, 'train.log')
@@ -126,12 +135,15 @@ def main():
         options.train_dataset = options.train_dataset.replace('train.', 'dev.')
         options.val_dataset = options.val_dataset.replace('val.', 'dev.')
 
+    # options.dev = False
+
     print('Args:\n%s\n' % pprint.pformat(vars(options)))
 
-    if options.gpu < 0:
-        device = torch.device('cpu')
-    else:
-        device = torch.device('cuda:%d' % options.gpu)
+    # if options.gpu < 0:
+    #     device = torch.device('cpu')
+    # else:
+    #     device = torch.device('cuda:%d' % options.gpu)
+    device = torch.device("cuda")
 
     common_utils.set_all_seeds(options.seed)
 
@@ -186,10 +198,10 @@ def main():
         options.max_instruction_span,
         num_instructions=model.args.num_pos_inst)
 
-    if not options.dev:
-        compute_cache(train_dataset)
-        compute_cache(val_dataset)
-        compute_cache(eval_dataset)
+    # if not options.dev:
+    #     compute_cache(train_dataset)
+    #     compute_cache(val_dataset)
+    #     compute_cache(eval_dataset)
 
     if options.optim == 'adamax':
         optimizer = torch.optim.Adamax(
@@ -204,24 +216,25 @@ def main():
     else:
         assert False, 'not supported'
 
+    num_workers = 3
     train_loader = DataLoader(
         train_dataset,
         options.batch_size,
         shuffle=True,
-        num_workers=1,# if options.dev else 10,
-        pin_memory=(options.gpu >= 0))
+        num_workers=num_workers,# if options.dev else 10,
+        pin_memory=True)
     val_loader = DataLoader(
         val_dataset,
         options.batch_size,
         shuffle=False,
-        num_workers=1,# if options.dev else 10,
-        pin_memory=(options.gpu >= 0))
+        num_workers=num_workers,# if options.dev else 10,
+        pin_memory=True)
     eval_loader = DataLoader(
         eval_dataset,
         options.batch_size,
         shuffle=False,
-        num_workers=1,#0 if options.dev else 10,
-        pin_memory=(options.gpu >= 0))
+        num_workers=num_workers,#0 if options.dev else 10,
+        pin_memory=True)
 
     best_val_nll = float('inf')
     overfit_count = 0

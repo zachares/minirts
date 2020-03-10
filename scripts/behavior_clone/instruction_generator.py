@@ -16,7 +16,11 @@ class LanguageGenerator(nn.Module):
         self.cmd_dict = cmd_dict
         self.word_emb = word_emb
 
+        print("emb dim: ", emb_dim)
+        print("Context dim: ", context_dim)
+
         self.reader = nn.LSTM(emb_dim + context_dim, hid_dim, batch_first=True)
+
         self.writer = nn.LSTMCell(emb_dim + context_dim, hid_dim)
         # tie the weights of reader and writer
         self.writer.weight_ih = self.reader.weight_ih_l0
@@ -101,8 +105,31 @@ class RnnLanguageGenerator(nn.Module):
         self.vocab_size = vocab_size
         self.inst_dict = inst_dict
 
-        self.rnn = nn.LSTM(word_emb_dim + context_dim, hid_dim, batch_first=True)
-        self.decoder = weight_norm(nn.Linear(hid_dim, vocab_size), dim=None)
+
+
+        # print("emb dim: ", word_emb_dim)
+        # print("Context dim: ", context_dim)
+        self.use_transformer = True
+
+        if self.use_transformer:
+            self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1,\
+                activation = 'relu'), num_layers = 4, norm = None)
+
+            layer_list = []
+            layer_list.append(nn.Linear(word_emb_dim, context_dim // 4))
+            layer_list.append(nn.ReLU())
+            layer_list.append(nn.Dropout(p = 0.2))
+            layer_list.append(nn.Linear(context_dim // 4, context_dim // 4))
+            layer_list.append(nn.ReLU())
+            layer_list.append(nn.Dropout(p = 0.2))
+            layer_list.append(nn.Linear(context_dim // 4, context_dim))
+
+            self.word_net = nn.Sequential(*layer_list)
+            self.decoder = weight_norm(nn.Linear(context_dim, vocab_size), dim=None)
+
+        else:
+            self.rnn = nn.LSTM(word_emb_dim + context_dim, hid_dim, batch_first=True)
+            self.decoder = weight_norm(nn.Linear(hid_dim, vocab_size), dim=None)
 
     def _forward2d(self, x, context):
         """compute logp given input
@@ -114,12 +141,30 @@ class RnnLanguageGenerator(nn.Module):
         return:
             logp: [batch, max_len, vocab_size]
         """
+        # print("Run 2D")
         emb = self.word_emb(x)
-        context = context.unsqueeze(1).repeat(1, x.size(1), 1)
-        input_ = torch.cat([emb, context], 2)
-        output, _ = self.rnn(input_)
-        logit = self.decoder(output)
+
+        if self.use_transformer:
+            word_emb = self.word_net(emb)
+
+            max_len = word_emb.size(1)
+            mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
+            mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+
+            output = self.transformer(word_emb.transpose(0,1), context.unsqueeze(0), tgt_mask = mask).transpose(0,1)
+            # print(output[0, 0, 0:15])
+            # print(output.size())
+            logit = self.decoder(output)
+            # print(logit.size())
+
+        else:
+            context = context.unsqueeze(1).repeat(1, x.size(1), 1)
+            input_ = torch.cat([emb, context], 2)
+            output, _ = self.rnn(input_)
+            logit = self.decoder(output)
+
         logp = nn.functional.log_softmax(logit, 2)
+        # print("Log probs sample: ", logp[0,0,0:15])
         return logp
 
     def _forward3d(self, x, context):
@@ -133,15 +178,35 @@ class RnnLanguageGenerator(nn.Module):
             logp: [batch, num_inst, max_len, vocab_size]
         """
         emb = self.word_emb(x)
-        emb = emb.unsqueeze(0).repeat(context.size(0), 1, 1, 1)
-        context = context.unsqueeze(1).repeat(1, x.size(1), 1)
-        logit = []
-        for i in range(x.size(0)):
-            input_ = torch.cat([emb[:, i], context], 2)
-            output, _ = self.rnn(input_)
-            logit.append(self.decoder(output))
 
-        logit = torch.stack(logit, 1)
+        if self.use_transformer:
+            num_inst = x.size(0)
+            batch_size = context.size(0)
+            max_len = x.size(1)
+            word_emb = self.word_net(emb)
+            word_emb = word_emb.unsqueeze(0).repeat_interleave(context.size(0), dim = 1)
+            context = context.unsqueeze(1).repeat_interleave(word_emb.size(1), dim = 1)
+
+            word_emb_reshaped = torch.reshape(word_emb, (word_emb.size(0) * word_emb.size(1), word_emb.size(2), word_emb.size(3)))
+            context_reshaped = torch.reshape(context, (context.size(0) * context.size(1), context.size(2)))
+
+            mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
+            mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+
+            output = self.transformer(word_emb_reshaped.transpose(0,1), context_reshaped.unsqueeze(0), tgt_mask = mask).transpose(0,1)
+            logit_reshaped = self.decoder(output)
+            logit = torch.reshape(logit_reshaped, (batch_size, num_inst, logit_reshaped.size(1), logit_reshaped.size(2)))
+        else:
+            emb = emb.unsqueeze(0).repeat(context.size(0), 1, 1, 1)
+            context = context.unsqueeze(1).repeat(1, x.size(1), 1)
+            logit = []
+            for i in range(x.size(0)):
+                input_ = torch.cat([emb[:, i], context], 2)
+                output, _ = self.rnn(input_)
+                logit.append(self.decoder(output))
+
+            logit = torch.stack(logit, 1)
+
         logp = nn.functional.log_softmax(logit, 3)
         return logp
 

@@ -15,7 +15,7 @@ from common_utils import assert_eq, assert_neq
 import common_utils.global_consts as gc
 
 
-def compute_cache(dataset, num_workers=40):
+def compute_cache(dataset, num_workers=4):
     t = time.time()
     cache =  []
     loader = DataLoader(dataset,
@@ -24,6 +24,9 @@ def compute_cache(dataset, num_workers=40):
                         num_workers=num_workers,
                         collate_fn=lambda x : x)
     for i, batch in enumerate(loader):
+        if (i + 1) % 1000 == 0:
+            print(i + 1, " batches of", len(loader), " processed")
+
         for data in batch:
             cache.append(data)
 
