@@ -112,17 +112,26 @@ class RnnLanguageGenerator(nn.Module):
         self.use_transformer = True
 
         if self.use_transformer:
+            # self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1,\
+            #     activation = 'relu'), num_layers = 4, norm = None)
+
+            # layer_list = []
+            # layer_list.append(nn.Linear(word_emb_dim, context_dim // 4))
+            # layer_list.append(nn.ReLU())
+            # layer_list.append(nn.Dropout(p = 0.2))
+            # layer_list.append(nn.Linear(context_dim // 4, context_dim // 4))
+            # layer_list.append(nn.ReLU())
+            # layer_list.append(nn.Dropout(p = 0.2))
+            # layer_list.append(nn.Linear(context_dim // 4, context_dim))
+
+            # self.word_net = nn.Sequential(*layer_list)
+            # self.decoder = weight_norm(nn.Linear(context_dim, vocab_size), dim=None)
+
             self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1,\
-                activation = 'relu'), num_layers = 4, norm = None)
+                activation = 'relu'), num_layers = 1, norm = None)
 
             layer_list = []
-            layer_list.append(nn.Linear(word_emb_dim, context_dim // 4))
-            layer_list.append(nn.ReLU())
-            layer_list.append(nn.Dropout(p = 0.2))
-            layer_list.append(nn.Linear(context_dim // 4, context_dim // 4))
-            layer_list.append(nn.ReLU())
-            layer_list.append(nn.Dropout(p = 0.2))
-            layer_list.append(nn.Linear(context_dim // 4, context_dim))
+            layer_list.append(nn.Linear(word_emb_dim, context_dim))
 
             self.word_net = nn.Sequential(*layer_list)
             self.decoder = weight_norm(nn.Linear(context_dim, vocab_size), dim=None)
