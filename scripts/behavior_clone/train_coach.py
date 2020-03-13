@@ -131,7 +131,7 @@ def main():
     options = args['main']
 
     # using development set
-    # options.dev = True
+    options.dev = True
 
     if not os.path.exists(options.model_folder):
         os.makedirs(options.model_folder)
@@ -143,7 +143,7 @@ def main():
         options.train_dataset = options.train_dataset.replace('train.', 'dev.')
         options.val_dataset = options.val_dataset.replace('val.', 'dev.')
 
-    # options.dev = False
+    options.dev = False
 
     print('Args:\n%s\n' % pprint.pformat(vars(options)))
 

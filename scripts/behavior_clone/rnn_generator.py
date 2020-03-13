@@ -10,18 +10,9 @@ import torch
 from common_utils import assert_eq
 import common_utils.global_consts as gc
 from rnn_coach import ConvRnnCoach, parse_batch_inst
-<<<<<<< HEAD
-<<<<<<< HEAD
-from instruction_generator import RnnLanguageGenerator
-from instruction_generator import TransformerLanguageGenerator
-=======
-from instruction_generator import RnnLanguageGenerator, TransformerGenerator
 
->>>>>>> ea4b7b597c94a81b14871b9ca737ad5ce144f615
-=======
 from instruction_generator import RnnLanguageGenerator
 from instruction_generator import TransformerLanguageGenerator
->>>>>>> c342ed39a9d432419ed6bc61729e6fa73cd36957
 
 class RnnGenerator(ConvRnnCoach):
     def __init__(self,
