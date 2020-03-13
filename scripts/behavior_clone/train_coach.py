@@ -23,7 +23,7 @@ from rnn_generator import RnnGenerator
 import common_utils
 
 
-def train(model, device, optimizer, grad_clip, data_loader, epoch):
+def train(model, device, optimizer, grad_clip, data_loader, epoch, stat):
     assert model.training
 
     losses = defaultdict(list)
@@ -40,16 +40,20 @@ def train(model, device, optimizer, grad_clip, data_loader, epoch):
         optimizer.step()
 
         for key, val in all_losses.items():
-            losses[key].append(val.item())
+            v = val.mean().item()
+            stat[key].feed(v)
 
-    print('train epoch: %d, time: %.2f' % (epoch, time.time() - t))
-    for key, val in losses.items():
-        print('\t%s: %.5f' % (key, np.mean(val)))
+    #     for key, val in all_losses.items():
+    #         losses[key].append(val.item())
 
-    return np.mean(losses['loss'])
+    # print('train epoch: %d, time: %.2f' % (epoch, time.time() - t))
+    # for key, val in losses.items():
+    #     print('\t%s: %.5f' % (key, np.mean(val)))
 
+    # return np.mean(losses['loss'])
+    return stat['loss'].mean()
 
-def evaluate(model, device, data_loader, epoch, name, norm_loss):
+def evaluate(model, device, data_loader, epoch, name, norm_loss, stat):
     assert not model.training
 
     losses = defaultdict(list)
@@ -65,14 +69,16 @@ def evaluate(model, device, data_loader, epoch, name, norm_loss):
             print("Loss: ", loss.item(), " in", batch_idx + 1, " batch of", len(data_loader))
 
         for key, val in all_losses.items():
-            losses[key].append(val.item())
+            stat[key].feed(val.mean().item())
+        # for key, val in all_losses.items():
+        #     losses[key].append(val.item())
 
-    print('%s epoch: %d, time: %.2f' % (name, epoch, time.time() - t))
-    for key, val in losses.items():
-        print('\t%s: %.5f' % (key, np.mean(val)))
+    # print('%s epoch: %d, time: %.2f' % (name, epoch, time.time() - t))
+    # for key, val in losses.items():
+    #     print('\t%s: %.5f' % (key, np.mean(val)))
 
-    return np.mean(losses['loss'])
-
+    # return np.mean(losses['loss'])
+    return stat['loss'].mean()
 
 def get_main_parser():
     parser = argparse.ArgumentParser()
@@ -139,11 +145,10 @@ def main():
 
     print('Args:\n%s\n' % pprint.pformat(vars(options)))
 
-    # if options.gpu < 0:
-    #     device = torch.device('cpu')
-    # else:
-    #     device = torch.device('cuda:%d' % options.gpu)
-    device = torch.device("cuda")
+    if options.gpu < 0:
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda')
 
     common_utils.set_all_seeds(options.seed)
 
@@ -216,7 +221,7 @@ def main():
     else:
         assert False, 'not supported'
 
-    num_workers = 3
+    num_workers = 4
     train_loader = DataLoader(
         train_dataset,
         options.batch_size,
@@ -238,12 +243,22 @@ def main():
 
     best_val_nll = float('inf')
     overfit_count = 0
+    train_stat = common_utils.MultiCounter(os.path.join(options.model_folder, 'train'))
+    eval_stat = common_utils.MultiCounter(os.path.join(options.model_folder, 'eval'))
+
     for epoch in range(1, options.epochs + 1):
         print('==========')
-        train(model, device, optimizer, options.grad_clip, train_loader, epoch)
+        train(model, device, optimizer, options.grad_clip, train_loader, epoch, train_stat)
+        train_stat.summary(epoch)
+        train_stat.reset()
+
         with torch.no_grad(), common_utils.EvalMode(model):
-            val_nll = evaluate(model, device, val_loader, epoch, 'val', False)
-            eval_nll = evaluate(model, device, eval_loader, epoch, 'eval', True)
+            val_nll = evaluate(model, device, val_loader, epoch, 'val', False, eval_stat)
+            eval_stat.reset()
+            eval_nll = evaluate(model, device, eval_loader, epoch, 'eval', True, eval_stat)
+            eval_stat.summary(epoch)
+            eval_stat.reset()
+
 
         model_file = os.path.join(options.model_folder, 'checkpoint%d.pt' % epoch)
         print('saving model to', model_file)

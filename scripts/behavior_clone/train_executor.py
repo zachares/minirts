@@ -34,6 +34,8 @@ def train(model, device, optimizer, grad_clip, data_loader, epoch, stat):
         # print(loss.mean())
         # print(all_losses)
         loss = loss.mean()
+        if (batch_idx + 1) % 50 == 0:
+            print("Loss: ", loss.item(), " in", batch_idx + 1, " batch of", len(data_loader))
 
         loss.backward()
         if grad_clip > 0:
@@ -60,6 +62,8 @@ def evaluate(model, device, data_loader, epoch, stat):
     for batch_idx, batch in enumerate(data_loader):
         batch = common_utils.to_device(batch, device)
         loss, all_losses = model(batch)
+        if (batch_idx + 1) % 50 == 0:
+            print("Loss: ", loss.mean().item(), " in", batch_idx + 1, " batch of", len(data_loader))
         # for key, val in all_losses.items():
         #     losses[key].append(val.item())
         for key, val in all_losses.items():
@@ -118,6 +122,8 @@ def main():
     # option_map = parse_args()
     # options = option_map.getOptions()
 
+    # options.dev = True
+
     if not os.path.exists(options.model_folder):
         os.makedirs(options.model_folder)
     logger_path = os.path.join(options.model_folder, 'train.log')
@@ -128,12 +134,15 @@ def main():
         options.train_dataset = options.train_dataset.replace('train.', 'dev.')
         options.val_dataset = options.val_dataset.replace('val.', 'dev.')
 
+    # options.dev = False
+
     print('Args:\n%s\n' % pprint.pformat(vars(options)))
 
     if options.gpu < 0:
         device = torch.device('cpu')
     else:
-        device = torch.device('cuda:%d' % options.gpu)
+        device = torch.device('cuda')
+
 
     common_utils.set_all_seeds(options.seed)
 
@@ -174,20 +183,21 @@ def main():
         train_dataset,
         options.batch_size,
         shuffle=True,
-        num_workers=20, # if options.dev else 20,
-        pin_memory=(options.gpu >= 0))
+        num_workers=4, # if options.dev else 20,
+        pin_memory=True)
     val_loader = DataLoader(
         val_dataset,
         options.batch_size,
         shuffle=False,
-        num_workers=20, # if options.dev else 20,
-        pin_memory=(options.gpu >= 0))
+        num_workers=4, # if options.dev else 20,
+        pin_memory=True)
 
     best_eval_nll = float('inf')
     overfit_count = 0
 
     train_stat = common_utils.MultiCounter(os.path.join(options.model_folder, 'train'))
     eval_stat = common_utils.MultiCounter(os.path.join(options.model_folder, 'eval'))
+    print("=============")
     for epoch in range(1, options.epochs + 1):
         train_stat.start_timer()
         train(model, device, optimizer, options.grad_clip, train_loader, epoch, train_stat)
