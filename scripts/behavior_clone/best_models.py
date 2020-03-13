@@ -16,6 +16,7 @@ best_executors = {
     'bow': 'executor_bow.pt',
     'onehot': 'executor_onehot.pt',
     'zero': 'executor_zero.pt',
+    'peter': 'executor_peter.pt'
 }
 for key, val in best_executors.items():
     best_executors[key] = os.path.join(model_root, val)
@@ -35,6 +36,7 @@ best_coaches = {
     'onehot250': 'coach_onehot250.pt',
     'onehot500': 'coach_onehot500.pt',
     'transformer': 'coach_transformer.pt',
+    'rnnpeter': 'coach_rnn_gen_peter.pt'
 }
 for key, val in best_coaches.items():
     best_coaches[key]= os.path.join(model_root, val)

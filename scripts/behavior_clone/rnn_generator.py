@@ -22,9 +22,11 @@ class RnnGenerator(ConvRnnCoach):
                  *,
                  num_unit_type=len(gc.UnitTypes),
                  num_cmd_type=len(gc.CmdTypes),
-                 transformer=False):
+                 transformer=False,
+                 inst_dict=None):
         super().__init__(
-            args, max_raw_chars, max_instruction_span, 'rnn_gen', num_resource_bin)
+            args, max_raw_chars, max_instruction_span, 'rnn_gen', num_resource_bin,
+            inst_dict=inst_dict)
         if transformer:
             self.inst_selector = TransformerGenerator(
                 self.prev_inst_encoder.emb,
@@ -46,11 +48,11 @@ class RnnGenerator(ConvRnnCoach):
             )
 
     @classmethod
-    def load(cls, model_file, transformer=False):
+    def load(cls, model_file, transformer=False, inst_dict=None):
         params = pickle.load(open(model_file + '.params', 'rb'))
         params.pop('coach_mode')
         print(params)
-        model = cls(transformer=transformer, **params)
+        model = cls(transformer=transformer, inst_dict=inst_dict, **params)
         model.load_state_dict(torch.load(model_file))
         return model
 

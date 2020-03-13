@@ -96,7 +96,8 @@ class ConvRnnCoach(nn.Module):
                  num_resource_bin,
                  *,
                  num_unit_type=len(gc.UnitTypes),
-                 num_cmd_type=len(gc.CmdTypes)):
+                 num_cmd_type=len(gc.CmdTypes),
+                 inst_dict=None):
         super().__init__()
 
         self.params = {
@@ -117,10 +118,12 @@ class ConvRnnCoach(nn.Module):
         self.pos_candidate_inst = None
         self.neg_candidate_inst = None
 
-        self.args.inst_dict_path = self.args.inst_dict_path.replace(
-            'scratch/rts_data', 'rts-replays')
-        self.inst_dict = self.load_inst_dict(self.args.inst_dict_path)
-
+        # self.args.inst_dict_path = self.args.inst_dict_path.replace(
+        #     'scratch/rts_data', 'rts-replays')
+        if inst_dict is None:
+            self.inst_dict = self.load_inst_dict(self.args.inst_dict_path)
+        else:
+            self.inst_dict = self.load_inst_dict(inst_dict)
         self.prev_inst_encoder = LSTMInstructionEncoder(
             self.inst_dict.total_vocab_size,
             self.args.word_emb_dim,

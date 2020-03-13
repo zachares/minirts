@@ -173,11 +173,11 @@ if __name__ == '__main__':
         device = torch.device('cpu')
 
     if 'onehot' in args.coach_path:
-        coach = ConvOneHotCoach.load(args.coach_path).to(device)
+        coach = ConvOneHotCoach.load(args.coach_path, inst_dict=args.inst_dict).to(device)
     elif 'gen' in args.coach_path:
-        coach = RnnGenerator.load(args.coach_path).to(device)
+        coach = RnnGenerator.load(args.coach_path, inst_dict=args.inst_dict).to(device)
     elif 'trans' in args.coach_path:
-        coach = RnnGenerator.load(args.coach_path, transformer=True).to(device)
+        coach = RnnGenerator.load(args.coach_path, transformer=True, inst_dict=args.inst_dict).to(device)
     else:
         coach = ConvRnnCoach.load(args.coach_path).to(device)
 
