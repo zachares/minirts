@@ -206,7 +206,8 @@ class Executor(nn.Module):
                  num_unit_type=len(gc.UnitTypes),
                  num_cmd_type=len(gc.CmdTypes),
                  x_size=gc.MAP_X,
-                 y_size=gc.MAP_Y):
+                 y_size=gc.MAP_Y,
+                 inst_dict=None):
         super().__init__()
 
         self.params = {
@@ -220,7 +221,11 @@ class Executor(nn.Module):
         self.args = args
         self.num_cmd_type = num_cmd_type
 
-        self.inst_dict = self._load_inst_dict(self.args.inst_dict_path)
+        if inst_dict is None:
+            self.inst_dict = self._load_inst_dict(self.args.inst_dict_path)
+        else:
+            self.inst_dict = self._load_inst_dict(inst_dict)
+
         self.inst_encoder = self._create_inst_encoder()
 
         self.conv_encoder = ConvGlobEncoder(
@@ -378,11 +383,12 @@ class Executor(nn.Module):
         pickle.dump(self.params, open(model_file + '.params', 'wb'))
 
     @classmethod
-    def load(cls, model_file):
+    def load(cls, model_file, inst_dict=None):
         params = pickle.load(open(model_file + '.params', 'rb'))
         print(params)
-        model = cls(**params)
+        model = cls(**params, inst_dict=inst_dict)
         model.load_state_dict(torch.load(model_file))
+
         return model
 
     def forward(self, batch):

@@ -90,6 +90,7 @@ class LanguageGenerator(nn.Module):
         return sentence, sentence_len
 
 
+
 class RnnLanguageGenerator(nn.Module):
     def __init__(self,
                  word_emb,
@@ -98,6 +99,7 @@ class RnnLanguageGenerator(nn.Module):
                  hid_dim,
                  vocab_size,
                  inst_dict,
+                 use_transformer=False,
     ):
         super().__init__()
 
@@ -109,7 +111,7 @@ class RnnLanguageGenerator(nn.Module):
 
         # print("emb dim: ", word_emb_dim)
         # print("Context dim: ", context_dim)
-        self.use_transformer = True
+        self.use_transformer = use_transformer
 
         if self.use_transformer:
             # self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1), num_layers = 4, norm = None)
@@ -293,3 +295,22 @@ class RnnLanguageGenerator(nn.Module):
         print(logps.size())
         logps = nn.functional.softmax(logps, 1)
         return logps
+
+
+class TransformerGenerator(RnnLanguageGenerator):
+    def __init__(self,
+                 word_emb,
+                 word_emb_dim,
+                 context_dim,
+                 hid_dim,
+                 vocab_size,
+                 inst_dict,
+                 ):
+
+        super().__init__(word_emb,
+                 word_emb_dim,
+                 context_dim,
+                 hid_dim,
+                 vocab_size,
+                 inst_dict,
+                 use_transformer=True)

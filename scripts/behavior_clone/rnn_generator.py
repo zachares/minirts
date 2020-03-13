@@ -10,7 +10,7 @@ import torch
 from common_utils import assert_eq
 import common_utils.global_consts as gc
 from rnn_coach import ConvRnnCoach, parse_batch_inst
-from instruction_generator import RnnLanguageGenerator
+from instruction_generator import RnnLanguageGenerator, TransformerGenerator
 
 
 class RnnGenerator(ConvRnnCoach):
@@ -21,26 +21,36 @@ class RnnGenerator(ConvRnnCoach):
                  num_resource_bin,
                  *,
                  num_unit_type=len(gc.UnitTypes),
-                 num_cmd_type=len(gc.CmdTypes)):
+                 num_cmd_type=len(gc.CmdTypes),
+                 transformer=False):
         super().__init__(
             args, max_raw_chars, max_instruction_span, 'rnn_gen', num_resource_bin)
-
-        # overwrite inst_selector
-        self.inst_selector = RnnLanguageGenerator(
-            self.prev_inst_encoder.emb,
-            self.args.word_emb_dim,
-            self.glob_feat_dim,
-            self.args.inst_hid_dim,
-            self.inst_dict.total_vocab_size,
-            self.inst_dict,
-        )
+        if transformer:
+            self.inst_selector = TransformerGenerator(
+                self.prev_inst_encoder.emb,
+                self.args.word_emb_dim,
+                self.glob_feat_dim,
+                self.args.inst_hid_dim,
+                self.inst_dict.total_vocab_size,
+                self.inst_dict,
+            )
+        else:
+            # overwrite inst_selector
+            self.inst_selector = RnnLanguageGenerator(
+                self.prev_inst_encoder.emb,
+                self.args.word_emb_dim,
+                self.glob_feat_dim,
+                self.args.inst_hid_dim,
+                self.inst_dict.total_vocab_size,
+                self.inst_dict,
+            )
 
     @classmethod
-    def load(cls, model_file):
+    def load(cls, model_file, transformer=False):
         params = pickle.load(open(model_file + '.params', 'rb'))
         params.pop('coach_mode')
         print(params)
-        model = cls(**params)
+        model = cls(transformer=transformer, **params)
         model.load_state_dict(torch.load(model_file))
         return model
 
@@ -133,7 +143,7 @@ class RnnGenerator(ConvRnnCoach):
 
         return inst, inst_len
 
-    def rl_forward(self, batch, mode):
+    def rl_forward(self, batch):
         """forward function use by RL
         """
         batch = self._format_rl_language_input(batch)

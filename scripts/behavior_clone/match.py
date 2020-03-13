@@ -19,7 +19,9 @@ from rnn_coach import ConvRnnCoach
 from executor_wrapper import ExecutorWrapper
 from executor import Executor
 from common_utils import to_device, ResultStat, Logger
-
+from rnn_coach import ConvRnnCoach
+from onehot_coach import ConvOneHotCoach
+from rnn_generator import RnnGenerator
 
 def create_game(num_games, ai1_option, ai2_option, game_option, *, act_name='act'):
     print('ai1 option:')
@@ -99,8 +101,9 @@ def parse_args():
     # model
     # 21.4 for best_rnn_executor
     # 25.2 for best_bow_executor
-    parser.add_argument('--coach_path', type=str, default=best_rnn_coach)
-    parser.add_argument('--model_path', type=str, default=best_rnn_executor)
+    parser.add_argument('--coach_path', type=str, required=True)
+    parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--inst_dict', type=str, default=None)
 
     args = parser.parse_args()
     return args
@@ -163,10 +166,23 @@ if __name__ == '__main__':
     logger_path = os.path.join(args.save_dir, 'train.log')
     sys.stdout = Logger(logger_path)
 
-    device = torch.device('cuda:%d' % args.gpu)
-    coach = ConvRnnCoach.load(args.coach_path).to(device)
+
+    if args.gpu > 0 :
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
+    if 'onehot' in args.coach_path:
+        coach = ConvOneHotCoach.load(args.coach_path).to(device)
+    elif 'gen' in args.coach_path:
+        coach = RnnGenerator.load(args.coach_path).to(device)
+    elif 'trans' in args.coach_path:
+        coach = RnnGenerator.load(args.coach_path, transformer=True).to(device)
+    else:
+        coach = ConvRnnCoach.load(args.coach_path).to(device)
+
     coach.max_raw_chars = args.max_raw_chars
-    executor = Executor.load(args.model_path).to(device)
+    executor = Executor.load(args.model_path, inst_dict=args.inst_dict).to(device)
     executor_wrapper = ExecutorWrapper(
         coach, executor, coach.num_instructions, args.max_raw_chars, args.cheat)
     executor_wrapper.train(False)
