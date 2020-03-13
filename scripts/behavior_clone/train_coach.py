@@ -18,8 +18,12 @@ from torch.utils.data import DataLoader
 from coach_dataset import CoachDataset, compute_cache
 from rnn_coach import ConvRnnCoach
 from onehot_coach import ConvOneHotCoach
+<<<<<<< HEAD
 from rnn_generator import RnnGenerator
 from rnn_generator import TransformerGenerator
+=======
+from rnn_generator import RnnGenerator, TransformerGenerator
+>>>>>>> ea4b7b597c94a81b14871b9ca737ad5ce144f615
 
 import common_utils
 
@@ -173,12 +177,23 @@ def main():
             0,
             options.max_instruction_span,
             options.num_resource_bin).to(device)
+<<<<<<< HEAD
     elif options.coach_type == 'trans_gen':
         model = TransformerGenerator(
             model_args,
             0,
             options.max_instruction_span,
             options.num_resource_bin).to(device)
+=======
+    elif options.coach_type == 'transformer':
+        model = RnnGenerator(
+            model_args,
+            0,
+            options.max_instruction_span,
+            options.num_resource_bin,
+            transformer=True).to(device)
+
+>>>>>>> ea4b7b597c94a81b14871b9ca737ad5ce144f615
 
     print(model)
 

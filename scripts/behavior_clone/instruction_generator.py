@@ -90,6 +90,7 @@ class LanguageGenerator(nn.Module):
         return sentence, sentence_len
 
 
+
 class RnnLanguageGenerator(nn.Module):
     def __init__(self,
                  word_emb,
@@ -98,6 +99,7 @@ class RnnLanguageGenerator(nn.Module):
                  hid_dim,
                  vocab_size,
                  inst_dict,
+                 use_transformer=False,
     ):
         super().__init__()
 
@@ -111,9 +113,15 @@ class RnnLanguageGenerator(nn.Module):
     def _forward2d(self, x, context):
         """compute logp given input
 
+<<<<<<< HEAD
         args:
             x: [batch, max_len]
             context: [batch, context_dim]
+=======
+        # print("emb dim: ", word_emb_dim)
+        # print("Context dim: ", context_dim)
+        self.use_transformer = use_transformer
+>>>>>>> ea4b7b597c94a81b14871b9ca737ad5ce144f615
 
         return:
             logp: [batch, max_len, vocab_size]
@@ -392,4 +400,27 @@ class TransformerLanguageGenerator(nn.Module):
         logps = torch.stack(logps, 0)
         # print(logps.size())
         logps = nn.functional.softmax(logps, 1)
+<<<<<<< HEAD
         return logps
+=======
+        return logps
+
+
+class TransformerGenerator(RnnLanguageGenerator):
+    def __init__(self,
+                 word_emb,
+                 word_emb_dim,
+                 context_dim,
+                 hid_dim,
+                 vocab_size,
+                 inst_dict,
+                 ):
+
+        super().__init__(word_emb,
+                 word_emb_dim,
+                 context_dim,
+                 hid_dim,
+                 vocab_size,
+                 inst_dict,
+                 use_transformer=True)
+>>>>>>> ea4b7b597c94a81b14871b9ca737ad5ce144f615

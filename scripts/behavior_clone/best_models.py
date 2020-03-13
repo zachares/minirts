@@ -23,7 +23,7 @@ for key, val in best_executors.items():
 # best_executors['zero'] = best_zero_executor
 
 
-coach_root = '/private/home/hengyuan/minirts/scripts/behavior_clone/new_sweep_coach/coach_repro1'
+coach_root = os.path.join(root, 'pretrained_models')
 best_coaches = {
     'rnn50': 'coach_rnn50.pt',
     'rnn250': 'coach_rnn250.pt',
@@ -34,6 +34,7 @@ best_coaches = {
     'onehot50': 'coach_onehot50.pt',
     'onehot250': 'coach_onehot250.pt',
     'onehot500': 'coach_onehot500.pt',
+    'transformer': 'coach_transformer.pt',
 }
 for key, val in best_coaches.items():
     best_coaches[key]= os.path.join(model_root, val)

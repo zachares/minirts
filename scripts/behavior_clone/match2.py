@@ -167,6 +167,8 @@ def load_model(coach_path, model_path, args):
         coach = ConvOneHotCoach.load(coach_path).to(device)
     elif 'gen' in coach_path:
         coach = RnnGenerator.load(coach_path).to(device)
+    elif 'trans' in coach_path:
+        coach = RnnGenerator.load(coach_path, transformer=True).to(device)
     else:
         coach = ConvRnnCoach.load(coach_path).to(device)
     coach.max_raw_chars = args.max_raw_chars
@@ -190,8 +192,10 @@ if __name__ == '__main__':
     logger_path = os.path.join(args.save_dir, 'train.log')
     sys.stdout = Logger(logger_path)
 
-    device = torch.device('cuda:%d' % args.gpu)
-
+    if args.gpu > 0 :
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     model1 = load_model(args.coach1, args.executor1, args)
     model2 = load_model(args.coach2, args.executor2, args)
 
