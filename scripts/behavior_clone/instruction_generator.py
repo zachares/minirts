@@ -89,7 +89,6 @@ class LanguageGenerator(nn.Module):
 
         return sentence, sentence_len
 
-
 class RnnLanguageGenerator(nn.Module):
     def __init__(self,
                  word_emb,
@@ -397,3 +396,7 @@ class TransformerLanguageGenerator(nn.Module):
 
         return logps
 
+
+class TransformerGenerator(TransformerLanguageGenerator):
+    def __init__(**kwargs):
+        super().__init__(**kwargs)
