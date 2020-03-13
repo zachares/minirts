@@ -187,7 +187,7 @@ class ConvRnnCoach(nn.Module):
                 self.args.inst_hid_dim,
                 self.args.word_emb_dropout,
                 self.inst_dict.pad_word_idx)
-        elif self.coach_mode == 'onehot' or self.coach_mode == 'rnn_gen':
+        elif self.coach_mode == 'onehot' or self.coach_mode == 'rnn_gen' or self.coach_mode == 'trans_gen':
             pass
         else:
             assert False, 'unknown coach mode: %s' % self.coach_mode

@@ -89,8 +89,6 @@ class LanguageGenerator(nn.Module):
 
         return sentence, sentence_len
 
-
-
 class RnnLanguageGenerator(nn.Module):
     def __init__(self,
                  word_emb,
@@ -99,7 +97,6 @@ class RnnLanguageGenerator(nn.Module):
                  hid_dim,
                  vocab_size,
                  inst_dict,
-                 use_transformer=False,
     ):
         super().__init__()
 
@@ -107,70 +104,21 @@ class RnnLanguageGenerator(nn.Module):
         self.vocab_size = vocab_size
         self.inst_dict = inst_dict
 
-
-
-        # print("emb dim: ", word_emb_dim)
-        # print("Context dim: ", context_dim)
-        self.use_transformer = use_transformer
-
-        if self.use_transformer:
-            # self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1), num_layers = 4, norm = None)
-
-            # layer_list = []
-            # layer_list.append(nn.Linear(word_emb_dim, context_dim // 4))
-            # layer_list.append(nn.ReLU())
-            # layer_list.append(nn.Dropout(p = 0.2))
-            # layer_list.append(nn.Linear(context_dim // 4, context_dim // 4))
-            # layer_list.append(nn.ReLU())
-            # layer_list.append(nn.Dropout(p = 0.2))
-            # layer_list.append(nn.Linear(context_dim // 4, context_dim))
-
-            # self.word_net = nn.Sequential(*layer_list)
-            # self.decoder = weight_norm(nn.Linear(context_dim, vocab_size), dim=None)
-
-            self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(context_dim, 8, dim_feedforward = context_dim, dropout = 0.1), num_layers = 2, norm = None)
-
-            layer_list = []
-            layer_list.append(nn.Linear(word_emb_dim, context_dim))
-
-            self.word_net = nn.Sequential(*layer_list)
-            self.decoder = weight_norm(nn.Linear(context_dim, vocab_size), dim=None)
-
-        else:
-            self.rnn = nn.LSTM(word_emb_dim + context_dim, hid_dim, batch_first=True)
-            self.decoder = weight_norm(nn.Linear(hid_dim, vocab_size), dim=None)
+        self.rnn = nn.LSTM(word_emb_dim + context_dim, hid_dim, batch_first=True)
+        self.decoder = weight_norm(nn.Linear(hid_dim, vocab_size), dim=None)
 
     def _forward2d(self, x, context):
         """compute logp given input
-
-        args:
-            x: [batch, max_len]
-            context: [batch, context_dim]
 
         return:
             logp: [batch, max_len, vocab_size]
         """
         # print("Run 2D")
         emb = self.word_emb(x)
-
-        if self.use_transformer:
-            word_emb = self.word_net(emb)
-
-            max_len = word_emb.size(1)
-            mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
-            mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-
-            output = self.transformer(word_emb.transpose(0,1), context.unsqueeze(0), tgt_mask = mask).transpose(0,1)
-            # print(output[0, 0, 0:15])
-            # print(output.size())
-            logit = self.decoder(output)
-            # print(logit.size())
-
-        else:
-            context = context.unsqueeze(1).repeat(1, x.size(1), 1)
-            input_ = torch.cat([emb, context], 2)
-            output, _ = self.rnn(input_)
-            logit = self.decoder(output)
+        context = context.unsqueeze(1).repeat(1, x.size(1), 1)
+        input_ = torch.cat([emb, context], 2)
+        output, _ = self.rnn(input_)
+        logit = self.decoder(output)
 
         logp = nn.functional.log_softmax(logit, 2)
         # print("Log probs sample: ", logp[0,0,0:15])
@@ -187,34 +135,21 @@ class RnnLanguageGenerator(nn.Module):
             logp: [batch, num_inst, max_len, vocab_size]
         """
         emb = self.word_emb(x)
+        emb = emb.unsqueeze(0).repeat(context.size(0), 1, 1, 1)
+        context = context.unsqueeze(1).repeat(1, x.size(1), 1)
+        logit = []
+        for i in range(x.size(0)):
+            input_ = torch.cat([emb[:, i], context], 2)
+            output, _ = self.rnn(input_)
+            logit.append(self.decoder(output))
 
-        if self.use_transformer:
-            num_inst = x.size(0)
-            batch_size = context.size(0)
-            max_len = x.size(1)
-            word_emb = self.word_net(emb)
-            word_emb = word_emb.unsqueeze(0).repeat_interleave(context.size(0), dim = 1)
-            context = context.unsqueeze(1).repeat_interleave(word_emb.size(1), dim = 1)
+        logit = torch.stack(logit, 1)
 
-            word_emb_reshaped = torch.reshape(word_emb, (word_emb.size(0) * word_emb.size(1), word_emb.size(2), word_emb.size(3)))
-            context_reshaped = torch.reshape(context, (context.size(0) * context.size(1), context.size(2)))
+        logp = nn.functional.log_softmax(logit, 3)
+        return logp
 
-            mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
-            mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-
-            output = self.transformer(word_emb_reshaped.transpose(0,1), context_reshaped.unsqueeze(0), tgt_mask = mask).transpose(0,1)
-            logit_reshaped = self.decoder(output)
-            logit = torch.reshape(logit_reshaped, (batch_size, num_inst, logit_reshaped.size(1), logit_reshaped.size(2)))
-        else:
-            emb = emb.unsqueeze(0).repeat(context.size(0), 1, 1, 1)
-            context = context.unsqueeze(1).repeat(1, x.size(1), 1)
-            logit = []
-            for i in range(x.size(0)):
-                input_ = torch.cat([emb[:, i], context], 2)
-                output, _ = self.rnn(input_)
-                logit.append(self.decoder(output))
-
-            logit = torch.stack(logit, 1)
+    def compute_loss(self, x, y, context):
+        """compute nll loss"""
 
         logp = nn.functional.log_softmax(logit, 3)
         return logp
@@ -296,8 +231,7 @@ class RnnLanguageGenerator(nn.Module):
         logps = nn.functional.softmax(logps, 1)
         return logps
 
-
-class TransformerGenerator(RnnLanguageGenerator):
+class TransformerLanguageGenerator(nn.Module):
     def __init__(self,
                  word_emb,
                  word_emb_dim,
@@ -305,12 +239,164 @@ class TransformerGenerator(RnnLanguageGenerator):
                  hid_dim,
                  vocab_size,
                  inst_dict,
-                 ):
+    ):
+        super().__init__()
 
-        super().__init__(word_emb,
-                 word_emb_dim,
-                 context_dim,
-                 hid_dim,
-                 vocab_size,
-                 inst_dict,
-                 use_transformer=True)
+        self.word_emb = word_emb
+        self.vocab_size = vocab_size
+        self.inst_dict = inst_dict
+
+        self.transformer = nn.TransformerDecoder(nn.TransformerDecoderLayer(word_emb_dim, 8, dim_feedforward = context_dim, dropout = 0.1), num_layers = 1, norm = None)
+
+        layer_list = []
+        layer_list.append(nn.Linear(context_dim, context_dim // 2))
+        layer_list.append(nn.ReLU())
+        layer_list.append(nn.Dropout(p = 0.2))
+        layer_list.append(nn.Linear(context_dim // 2, context_dim // 4))
+        layer_list.append(nn.ReLU())
+        layer_list.append(nn.Dropout(p = 0.2))
+        layer_list.append(nn.Linear(context_dim // 4, word_emb_dim))
+
+        self.context_net = nn.Sequential(*layer_list)
+        self.decoder = weight_norm(nn.Linear(word_emb_dim, vocab_size), dim=None)
+
+
+    def _forward2d(self, x, context):
+        """compute logp given input
+
+        args:
+            x: [batch, max_len]
+            context: [batch, context_dim]
+
+        return:
+            logp: [batch, max_len, vocab_size]
+        """
+        # print("Run 2D")
+        emb = self.word_emb(x)
+
+        max_len = emb.size(1)
+        mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
+        mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+
+        output = self.transformer(emb.transpose(0,1), self.context_net(context).unsqueeze(0), tgt_mask = mask).transpose(0,1)
+
+        logit = self.decoder(output)
+
+        logp = nn.functional.log_softmax(logit, 2)
+        # print("Log probs sample: ", logp[0,0,0:15])
+        return logp
+
+    def _forward3d(self, x, context):
+        """compute logp given input
+
+        args:
+            x: [num_inst, max_len}
+            context: [batch, context_dim]
+
+        return:
+            logp: [batch, num_inst, max_len, vocab_size]
+        """
+        emb = self.word_emb(x)
+
+        num_inst = x.size(0)
+        batch_size = context.size(0)
+        max_len = x.size(1)
+        emb = emb.unsqueeze(0).repeat_interleave(batch_size, dim = 0)
+        logit = []
+
+        for i in range(num_inst):
+            word_emb = emb[:,i]
+
+            mask = (torch.triu(torch.ones(max_len, max_len).to(x.device)) == 1).transpose(0, 1)
+            mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
+
+            output = self.transformer(word_emb.transpose(0,1), self.context_net(context).unsqueeze(0), tgt_mask = mask).transpose(0,1)
+            logit.append(self.decoder(output))
+
+        logit = torch.stack(logit, 1)
+
+        logp = nn.functional.log_softmax(logit, 3)
+        return logp
+
+    def compute_loss(self, x, y, context):
+        """compute nll loss
+
+        args:
+            x: [batch, max_length]
+            y: [batch, max_length]
+            context: [batch, context_dim], used at every time step
+        return:
+            nll: [batch], -logp
+        """
+        logp = self._forward2d(x, context)
+        logp = logp.gather(2, y.unsqueeze(2)).squeeze(2)
+        logp = logp.sum(1)
+        return -logp
+
+    def compute_prob(self, x, y, context, *, temp=1, log=False):
+        """compute log prob of target y given input x
+
+        args:
+            x: [num_inst, max_length]
+            y: [num_inst, max_length]
+            context: [batch, context_dim], used at every time step
+        return:
+            logp: [batch, num_instruction]
+        """
+        logp = self._forward3d(x, context)
+        # logp: [batch, num_inst, max_length, vocab_size]
+        batch, num_inst, max_len, vocab_size = logp.size()
+        # print(y.size())
+        y = y.unsqueeze(0).expand(context.size(0), y.size(0), y.size(1))
+        logp = logp.gather(3, y.unsqueeze(3)).squeeze(3)
+        # logp:  [batch, num_inst, max_length]
+        logit = logp.sum(2)
+        logit = logit / temp
+        # logit: [batch, num_inst]
+        if log:
+            return nn.functional.log_softmax(logit, 1)
+        else:
+            return nn.functional.softmax(logit, 1)
+
+    def compute_prob2(self, x, y, context):
+        """compute logp given input
+
+        args:
+            x: [num_inst, max_len]
+            context: [batch, context_dim]
+        """
+        emb = self.word_emb(x)
+        # emb: [num_inst, emb_dim]
+        # logit = []
+        # logp = []
+        logps = []
+        for i in range(context.size(0)):
+            context_  = context[i].unsqueeze(0).unsqueeze(1).repeat(
+                emb.size(0), emb.size(1), 1)
+            # print(emb.size())
+            # print(context_.size())
+            input_ = torch.cat([emb, context_], 2)
+            output, _ = self.rnn(input_)
+            # logit.append(self.decoder(output))
+            logit = self.decoder(output)
+            # logit: [num_inst, max_len, vocab_size]
+            logp = nn.functional.log_softmax(logit, 2)#.sum(2)
+            # print(logp.size())
+            # print(y[i].size())
+            logp = logp.gather(2, y.unsqueeze(2)).squeeze(2)
+            logp = logp.sum(1)
+            logps.append(logp)
+
+        # logit = torch.stack(logit, 0)
+        # print('>>>', logit.size())
+        # logp = nn.functional.log_softmax(logit, 3)
+        logps = torch.stack(logps, 0)
+        # print(logps.size())
+        logps = nn.functional.softmax(logps, 1)
+
+        return logps
+
+
+class TransformerGenerator(TransformerLanguageGenerator):
+    def __init__(**kwargs):
+        super().__init__(**kwargs)

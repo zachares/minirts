@@ -18,7 +18,9 @@ from torch.utils.data import DataLoader
 from coach_dataset import CoachDataset, compute_cache
 from rnn_coach import ConvRnnCoach
 from onehot_coach import ConvOneHotCoach
-from rnn_generator import RnnGenerator, TransformerGenerator
+
+from rnn_generator import RnnGenerator
+from rnn_generator import TransformerGenerator
 
 import common_utils
 
@@ -129,7 +131,7 @@ def main():
     options = args['main']
 
     # using development set
-    # options.dev = True
+    options.dev = True
 
     if not os.path.exists(options.model_folder):
         os.makedirs(options.model_folder)
@@ -141,7 +143,7 @@ def main():
         options.train_dataset = options.train_dataset.replace('train.', 'dev.')
         options.val_dataset = options.val_dataset.replace('val.', 'dev.')
 
-    # options.dev = False
+    options.dev = False
 
     print('Args:\n%s\n' % pprint.pformat(vars(options)))
 
@@ -172,14 +174,12 @@ def main():
             0,
             options.max_instruction_span,
             options.num_resource_bin).to(device)
-    elif options.coach_type == 'transformer':
-        model = RnnGenerator(
+    elif options.coach_type == 'trans_gen':
+        model = TransformerGenerator(
             model_args,
             0,
             options.max_instruction_span,
-            options.num_resource_bin,
-            transformer=True).to(device)
-
+            options.num_resource_bin).to(device)
 
     print(model)
 

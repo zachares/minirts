@@ -22,10 +22,11 @@ class ConvOneHotCoach(ConvRnnCoach):
                  num_resource_bin,
                  *,
                  num_unit_type=len(gc.UnitTypes),
-                 num_cmd_type=len(gc.CmdTypes)):
+                 num_cmd_type=len(gc.CmdTypes),
+                 **kwargs):
         # 'rnn' is a hack, no use
         super().__init__(
-            args, max_raw_chars, max_instruction_span, 'onehot', num_resource_bin)
+            args, max_raw_chars, max_instruction_span, 'onehot', num_resource_bin, **kwargs)
 
         # overwrite inst_selector
         self.inst_selector = OneHotSelector(
@@ -35,10 +36,10 @@ class ConvOneHotCoach(ConvRnnCoach):
         )
 
     @classmethod
-    def load(cls, model_file):
+    def load(cls, model_file, inst_dict=None):
         params = pickle.load(open(model_file + '.params', 'rb'))
         params.pop('coach_mode')
-        model = cls(**params)
+        model = cls(inst_dict=inst_dict, **params)
         model.load_state_dict(torch.load(model_file))
         return model
 

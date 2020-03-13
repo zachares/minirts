@@ -21,7 +21,7 @@ from executor import Executor
 from common_utils import to_device, ResultStat, Logger
 from rnn_coach import ConvRnnCoach
 from onehot_coach import ConvOneHotCoach
-from rnn_generator import RnnGenerator
+from rnn_generator import RnnGenerator, TransformerGenerator
 
 def create_game(num_games, ai1_option, ai2_option, game_option, *, act_name='act'):
     print('ai1 option:')
@@ -177,9 +177,9 @@ if __name__ == '__main__':
     elif 'gen' in args.coach_path:
         coach = RnnGenerator.load(args.coach_path, inst_dict=args.inst_dict).to(device)
     elif 'trans' in args.coach_path:
-        coach = RnnGenerator.load(args.coach_path, transformer=True, inst_dict=args.inst_dict).to(device)
+        coach = TransformerGenerator.load(args.coach_path, inst_dict=args.inst_dict).to(device)
     else:
-        coach = ConvRnnCoach.load(args.coach_path).to(device)
+        coach = ConvRnnCoach.load(args.coach_path, inst_dict=args.inst_dict).to(device)
 
     coach.max_raw_chars = args.max_raw_chars
     executor = Executor.load(args.model_path, inst_dict=args.inst_dict).to(device)
